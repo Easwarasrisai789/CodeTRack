@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CodeTrack</title>
+    <meta
+      name="description"
+      content="CodeTrack personal coding revision and task management platform"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="appShell" class="app-shell">
+      <header class="guest-nav" id="guestNav">
+        <a class="guest-brand" href="#authPage">
+          <span class="brand-mark">C</span>
+          <span>
+            <span class="brand-kicker">Learning Suite</span>
+            <strong>CodeTrack</strong>
+          </span>
+        </a>
+        <nav class="guest-nav-actions" aria-label="Account">
+          <button class="ghost-btn" type="button" data-guest-auth="login">Login</button>
+          <button class="primary-btn" type="button" data-guest-auth="register">Get started</button>
+        </nav>
+      </header>
+
+      <aside class="sidebar" id="sidebar">
+        <div class="brand-block">
+          <div class="brand-mark">C</div>
+          <div>
+            <p class="brand-kicker">Learning Suite</p>
+            <h1>CodeTrack</h1>
+          </div>
+        </div>
+
+        <nav class="sidebar-nav" id="sidebarNav">
+          <button class="nav-item active" data-page="dashboard">
+            <span class="nav-icon" data-lucide="layout-dashboard"></span>
+            <span>Dashboard</span>
+          </button>
+          <button class="nav-item" data-page="sections">
+            <span class="nav-icon" data-lucide="folder-open"></span>
+            <span>My Sections</span>
+          </button>
+          <button class="nav-item" data-page="tasks">
+            <span class="nav-icon" data-lucide="clipboard-list"></span>
+            <span>Daily updates</span>
+          </button>
+          <button class="nav-item" data-page="shared">
+            <span class="nav-icon" data-lucide="share-2"></span>
+            <span>Shared with me</span>
+          </button>
+          <button class="nav-item" data-page="revisions">
+            <span class="nav-icon" data-lucide="calendar-clock"></span>
+            <span>Revision List</span>
+          </button>
+          <button class="nav-item" data-page="bookmarks">
+            <span class="nav-icon" data-lucide="bookmark"></span>
+            <span>Bookmarks</span>
+          </button>
+          <button class="nav-item" data-page="profile">
+            <span class="nav-icon" data-lucide="user-round"></span>
+            <span>Profile</span>
+          </button>
+          <button class="nav-item admin-only hidden" data-page="admin">
+            <span class="nav-icon" data-lucide="shield-check"></span>
+            <span>Admin Panel</span>
+          </button>
+          <button class="nav-item danger" id="logoutBtn">
+            <span class="nav-icon" data-lucide="log-out"></span>
+            <span>Logout</span>
+          </button>
+        </nav>
+      </aside>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="topbarEyebrow">Welcome back</p>
+            <h2 id="pageTitle">Dashboard</h2>
+          </div>
+
+          <div class="topbar-actions">
+            <button class="ghost-btn" id="quickCreateSectionBtn">
+              <span data-lucide="folder-plus"></span>
+              <span>Create Section</span>
+            </button>
+            <button class="primary-btn" id="quickCreateTaskBtn">
+              <span data-lucide="plus-circle"></span>
+              <span>Add daily update</span>
+            </button>
+            <div class="user-pill" id="userBadge">
+              <span class="user-avatar" id="userAvatar">U</span>
+              <div>
+                <strong id="userNameBadge">Guest</strong>
+                <small id="userEmailBadge">No session</small>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div id="appContent">
+          <section class="page active" id="authPage">
+            <div class="auth-shell">
+              <div class="auth-hero">
+                <div class="hero-badge">CodeTrack</div>
+                <h1>Log what you did. Revise it later.</h1>
+                <p>
+                  Each day, save what you finished and where it came from. Come back to
+                  that list when you want to revise.
+                </p>
+                <ul>
+                  <li>Daily log with date, work, and source</li>
+                  <li>Revision status you can update later</li>
+                  <li>Share a section as read-only, and stop it anytime</li>
+                </ul>
+              </div>
+
+              <div class="auth-card">
+                <div class="auth-switcher">
+                  <button class="auth-mode active" data-auth-mode="login">Login</button>
+                  <button class="auth-mode" data-auth-mode="register">Register</button>
+                </div>
+
+                <form id="loginForm" class="auth-form active">
+                  <div class="form-group">
+                    <label for="loginEmail">Email</label>
+                    <input id="loginEmail" type="email" placeholder="you@example.com" required />
+                  </div>
+                  <div class="form-group">
+                    <label for="loginPassword">Password</label>
+                    <input id="loginPassword" type="password" placeholder="••••••••" required />
+                  </div>
+                  <button class="primary-btn full-width" type="submit">Login to CodeTrack</button>
+                  <button type="button" class="link-btn" id="forgotPasswordBtn">Forgot password?</button>
+                </form>
+
+                <form id="registerForm" class="auth-form">
+                  <div class="form-grid two">
+                    <div class="form-group">
+                      <label for="registerName">Full name</label>
+                      <input id="registerName" type="text" placeholder="Your name" required />
+                    </div>
+                    <div class="form-group">
+                      <label for="registerPhone">Phone</label>
+                      <input id="registerPhone" type="tel" placeholder="Optional" />
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="registerEmail">Email</label>
+                    <input id="registerEmail" type="email" placeholder="you@example.com" required />
+                  </div>
+                  <div class="form-group">
+                    <label for="registerPassword">Password</label>
+                    <input id="registerPassword" type="password" placeholder="Minimum 6 characters" required />
+                  </div>
+                  <button class="primary-btn full-width" type="submit">Create account</button>
+                </form>
+              </div>
+            </div>
+          </section>
+
+          <section class="page" id="dashboardPage"></section>
+          <section class="page" id="sectionsPage"></section>
+          <section class="page" id="tasksPage"></section>
+          <section class="page" id="sharedPage"></section>
+          <section class="page" id="revisionsPage"></section>
+          <section class="page" id="bookmarksPage"></section>
+          <section class="page" id="profilePage"></section>
+          <section class="page" id="adminPage"></section>
+          <section class="page" id="sectionDetailPage"></section>
+          <section class="page" id="taskDetailPage"></section>
+        </div>
+      </main>
+    </div>
+
+    <div class="modal hidden" id="sectionModal">
+      <div class="modal-backdrop" data-close-modal="sectionModal"></div>
+      <div class="modal-card wide">
+        <div class="modal-header">
+          <h3 id="sectionModalTitle">Create Section</h3>
+          <button class="icon-button" data-close-modal="sectionModal" aria-label="Close">×</button>
+        </div>
+        <form id="sectionForm">
+          <input type="hidden" id="sectionId" />
+          <div class="form-grid two">
+            <div class="form-group">
+              <label for="sectionTitle">Section title</label>
+              <input id="sectionTitle" type="text" required />
+            </div>
+            <div class="form-group">
+              <label for="sectionCategory">Subject / Category</label>
+              <input id="sectionCategory" type="text" placeholder="e.g. Python, DSA" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="sectionDescription">Description</label>
+            <textarea id="sectionDescription" rows="4" required></textarea>
+          </div>
+          <div class="form-group">
+            <label for="sectionDailyTarget">Daily task target</label>
+            <input id="sectionDailyTarget" type="number" min="1" max="100" value="2" required />
+            <small class="muted">Set how many tasks you want to add to this section each day.</small>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="ghost-btn" data-close-modal="sectionModal">Cancel</button>
+            <button type="submit" class="primary-btn">Save section</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal hidden" id="taskModal">
+      <div class="modal-backdrop" data-close-modal="taskModal"></div>
+      <div class="modal-card huge">
+        <div class="modal-header">
+          <h3 id="taskModalTitle">Create Task</h3>
+          <button class="icon-button" data-close-modal="taskModal" aria-label="Close">×</button>
+        </div>
+
+        <form id="taskForm">
+          <input type="hidden" id="taskId" />
+
+          <div class="form-grid two">
+            <div class="form-group">
+              <label for="taskSectionId">Section</label>
+              <select id="taskSectionId" required></select>
+            </div>
+            <div class="form-group">
+              <label for="taskDoneOn">Date</label>
+              <input id="taskDoneOn" type="date" required />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="taskWhatDone">What I did</label>
+            <input id="taskWhatDone" type="text" placeholder="What you completed today" required />
+          </div>
+          <div class="form-group">
+            <label for="taskDetails">Details</label>
+            <textarea id="taskDetails" rows="4" placeholder="Notes you want to remember when you revise"></textarea>
+          </div>
+
+          <div class="form-grid two">
+            <div class="form-group">
+              <label for="taskSourceName">Source</label>
+              <input id="taskSourceName" type="text" placeholder="Book, class, LeetCode, docs..." required />
+            </div>
+            <div class="form-group">
+              <label for="taskSourceUrl">Source link</label>
+              <input id="taskSourceUrl" type="url" placeholder="https://..." />
+            </div>
+          </div>
+
+          <div class="form-grid two">
+            <div class="form-group">
+              <label for="taskRevisionStatus">Revision status</label>
+              <select id="taskRevisionStatus">
+                <option value="Not Started">Not Started</option>
+                <option value="First Revision">First Revision</option>
+                <option value="Second Revision">Second Revision</option>
+                <option value="Mastered">Mastered</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="taskNextRevisionDate">Revise on</label>
+              <input id="taskNextRevisionDate" type="date" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="taskRevisionNotes">Revision notes</label>
+            <textarea id="taskRevisionNotes" rows="3" placeholder="What to check when you come back to this"></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="ghost-btn" data-close-modal="taskModal">Cancel</button>
+            <button type="submit" class="primary-btn">Save update</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="toast hidden" id="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+    <script type="module" src="./app.js?v=4"></script>
+  </body>
+</html>

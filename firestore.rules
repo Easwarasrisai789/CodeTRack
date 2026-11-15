@@ -1,0 +1,96 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true;
+    }
+
+    function isBootstrapAdmin() {
+      return signedIn()
+        && request.auth.token.email.lower() == 'eswarvenky08@gmail.com';
+    }
+
+    function sharedWithMe() {
+      return signedIn() && request.auth.uid in resource.data.get('sharedWith', []);
+    }
+
+    match /directory/{emailId} {
+      allow get: if signedIn();
+      allow list: if signedIn();
+      allow create, update: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && emailId == request.auth.token.email.lower()
+        && request.resource.data.email == emailId;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    match /users/{uid} {
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && (
+          request.resource.data.get('isAdmin', false) == false
+          || (
+            isBootstrapAdmin()
+            && request.resource.data.isAdmin == true
+            && request.resource.data.email.lower() == request.auth.token.email.lower()
+          )
+        );
+
+      allow read: if isOwner(uid) || isAdmin();
+
+      allow update: if isAdmin()
+        || (
+          isOwner(uid)
+          && request.resource.data.uid == uid
+          && request.resource.data.get('isAdmin', false) == resource.data.get('isAdmin', false)
+        )
+        || (
+          isOwner(uid)
+          && isBootstrapAdmin()
+          && request.resource.data.uid == uid
+          && request.resource.data.isAdmin == true
+          && request.resource.data.email.lower() == request.auth.token.email.lower()
+        );
+
+      allow delete: if isAdmin();
+
+      match /sections/{sectionId} {
+        allow read: if isOwner(uid) || isAdmin() || sharedWithMe();
+        allow write: if isOwner(uid) || isAdmin();
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isOwner(uid) || isAdmin() || sharedWithMe();
+        allow write: if isOwner(uid) || isAdmin();
+      }
+
+      match /bookmarks/{bookmarkId} {
+        allow read, write: if isOwner(uid) || isAdmin();
+      }
+
+      match /incomingShares/{shareId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create, update: if isAdmin()
+          || (
+            signedIn()
+            && request.resource.data.ownerUid == request.auth.uid
+            && request.resource.data.sectionId is string
+          );
+        allow delete: if isAdmin()
+          || isOwner(uid)
+          || (signedIn() && resource.data.ownerUid == request.auth.uid);
+      }
+    }
+  }
+}
