@@ -26,6 +26,9 @@ import {
 const APP_NAME = 'CodeTrack';
 const ADMIN_EMAIL = 'eswarvenky08@gmail.com';
 const STORAGE_KEY = 'codeTrackLocalStore';
+const SESSION_STORAGE_KEY = 'codeTrackSessionExpiry';
+const SESSION_DURATION_MS = 6 * 60 * 60 * 1000;
+let sessionExpiryTimer = null;
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDUKKDS-WNvr7K9G_719JQUloinZl_71r8',
@@ -299,8 +302,12 @@ function bindUI() {
   document.getElementById('taskForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const formData = readTaskForm();
-    if (!formData.whatDone || !formData.sectionId || !formData.doneOn || !formData.sourceName) {
-      showToast('Date, what you did, source, and section are required.');
+    if (!formData.whatDone || !formData.sectionId || !formData.doneOn || !formData.components.length) {
+      showToast('Date, what you did, section, and at least one task component are required.');
+      return;
+    }
+    if (formData.components.includes('platform') && !formData.sourceName) {
+      showToast('Enter a source or platform when Platform link is selected.');
       return;
     }
     const section = getSectionById(formData.sectionId);
@@ -554,6 +561,25 @@ function setupAuthFlow() {
 function listenAuthState() {
   onAuthStateChanged(auth, async (user) => {
     if (user) {
+      const lastSignIn = Date.parse(user.metadata?.lastSignInTime || '');
+      const storedSession = readSessionExpiry();
+      const expiresAt = Number.isFinite(lastSignIn)
+        ? lastSignIn + SESSION_DURATION_MS
+        : storedSession?.uid === user.uid
+          ? storedSession.expiresAt
+          : Date.now() + SESSION_DURATION_MS;
+      saveSessionExpiry(user.uid, expiresAt);
+      if (expiresAt <= Date.now()) {
+        try {
+          await signOut(auth);
+        } catch (error) {
+          showToast(getFirebaseErrorMessage(error, 'Unable to end your expired session.', 'Authentication session expiry'), 9000);
+          state.user = user;
+          await renderApp();
+        }
+        return;
+      }
+      scheduleSessionExpiry(user.uid, expiresAt);
       state.user = user;
       try {
         await ensureProfileForUser(user);
@@ -564,6 +590,7 @@ function listenAuthState() {
         await renderApp();
       }
     } else {
+      clearSessionExpiry();
       state.user = null;
       state.profile = null;
       await renderApp();
@@ -624,16 +651,34 @@ async function syncDirectory(user, profile) {
 async function loadLocalProfile() {
   const sessionUid = localStorage.getItem('codeTrackSessionUid');
   if (!sessionUid) {
+    clearSessionExpiry();
     state.user = null;
     state.profile = null;
     renderApp();
     return;
   }
 
+  const session = readSessionExpiry();
+  if (session?.uid === sessionUid && session.expiresAt <= Date.now()) {
+    localStorage.removeItem('codeTrackSessionUid');
+    clearSessionExpiry();
+    state.user = null;
+    state.profile = null;
+    showToast('Your 6-hour session has expired. Please sign in again.');
+    renderApp();
+    return;
+  }
+  if (!session || session.uid !== sessionUid) {
+    saveSessionExpiry(sessionUid, Date.now() + SESSION_DURATION_MS);
+  } else {
+    scheduleSessionExpiry(sessionUid, session.expiresAt);
+  }
+
   const store = loadLocalStore();
   const user = (store.users || []).find((entry) => entry.uid === sessionUid);
   if (!user) {
     localStorage.removeItem('codeTrackSessionUid');
+    clearSessionExpiry();
     state.user = null;
     state.profile = null;
     renderApp();
@@ -952,6 +997,39 @@ function saveLocalStore(store) {
 
 function persistLocalSession(uid) {
   localStorage.setItem('codeTrackSessionUid', uid);
+  saveSessionExpiry(uid, Date.now() + SESSION_DURATION_MS);
+}
+
+function readSessionExpiry() {
+  try {
+    return JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) || 'null');
+  } catch (error) {
+    return null;
+  }
+}
+
+function saveSessionExpiry(uid, expiresAt) {
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ uid, expiresAt }));
+  scheduleSessionExpiry(uid, expiresAt);
+}
+
+function scheduleSessionExpiry(uid, expiresAt) {
+  clearTimeout(sessionExpiryTimer);
+  sessionExpiryTimer = null;
+  const remaining = expiresAt - Date.now();
+  if (remaining <= 0) return;
+
+  sessionExpiryTimer = window.setTimeout(async () => {
+    if (state.user?.uid !== uid) return;
+    showToast('Your 6-hour session has expired. Please sign in again.', 5000);
+    await handleLogout();
+  }, remaining);
+}
+
+function clearSessionExpiry() {
+  clearTimeout(sessionExpiryTimer);
+  sessionExpiryTimer = null;
+  localStorage.removeItem(SESSION_STORAGE_KEY);
 }
 
 function findLocalUserByEmail(email) {
@@ -980,7 +1058,11 @@ function normalizeTask(task) {
 
 function getTaskComponents(task) {
   if (Array.isArray(task.components) && task.components.length) {
-    return task.components;
+    const components = [...task.components];
+    if ((task.sourceName || task.platformName || task.sourceUrl || task.platformUrl) && !components.includes('platform')) {
+      components.push('platform');
+    }
+    return components;
   }
 
   const legacyComponents = {
@@ -1044,6 +1126,45 @@ function taskSourceLabel(task) {
   return task?.sourceName || task?.platformName || 'No source';
 }
 
+function taskComponentLabels(task) {
+  const labels = {
+    description: 'Description',
+    problem: 'Coding problem',
+    code: 'Code solution',
+    platform: 'Platform link',
+    notes: 'Notes',
+  };
+  return getTaskComponents(task).map((component) => labels[component] || component);
+}
+
+function renderTaskComponentDetails(task) {
+  const components = new Set(getTaskComponents(task));
+  const details = [];
+  if (components.has('problem') && task.problemStatement) {
+    details.push(`<h3>Coding problem</h3><p>${escapeHtml(task.problemStatement)}</p>`);
+  }
+  if (components.has('problem')) {
+    const problemMeta = [
+      task.inputFormat && `<div><strong>Input format:</strong> ${escapeHtml(task.inputFormat)}</div>`,
+      task.outputFormat && `<div><strong>Output format:</strong> ${escapeHtml(task.outputFormat)}</div>`,
+      task.constraints && `<div><strong>Constraints:</strong> ${escapeHtml(task.constraints)}</div>`,
+      task.sampleInput && `<div><strong>Sample input:</strong><pre>${escapeHtml(task.sampleInput)}</pre></div>`,
+      task.sampleOutput && `<div><strong>Sample output:</strong><pre>${escapeHtml(task.sampleOutput)}</pre></div>`,
+    ].filter(Boolean);
+    if (problemMeta.length) details.push(problemMeta.join(''));
+  }
+  if (components.has('code') && task.code) {
+    details.push(`<h3>Code solution${task.programmingLanguage ? ` · ${escapeHtml(task.programmingLanguage)}` : ''}</h3><pre>${escapeHtml(task.code)}</pre>`);
+  }
+  if (components.has('code') && task.solutionExplanation) {
+    details.push(`<h3>Solution explanation</h3><p>${escapeHtml(task.solutionExplanation)}</p>`);
+  }
+  if (components.has('notes') && task.taskNotes) {
+    details.push(`<h3>Notes</h3><p>${escapeHtml(task.taskNotes)}</p>`);
+  }
+  return details.join('');
+}
+
 function taskDateLabel(task) {
   return task?.doneOn || (task?.createdAt ? String(task.createdAt).slice(0, 10) : '');
 }
@@ -1075,6 +1196,7 @@ function taskFieldsFromInput(data) {
     taskType: data.taskType || getLegacyTaskType(components),
     components,
     notes: data.notes || '',
+    taskNotes: data.taskNotes || '',
     code: data.code || '',
     problemStatement: data.problemStatement || '',
     inputFormat: data.inputFormat || '',
@@ -1318,10 +1440,13 @@ async function updateSectionTaskCount(sectionId) {
 }
 
 function readTaskForm() {
+  const components = [...document.querySelectorAll('input[name="taskComponents"]:checked')]
+    .map((checkbox) => checkbox.value);
+  const includes = (component) => components.includes(component);
   const whatDone = document.getElementById('taskWhatDone').value.trim();
-  const details = document.getElementById('taskDetails').value.trim();
-  const sourceName = document.getElementById('taskSourceName').value.trim();
-  const sourceUrl = document.getElementById('taskSourceUrl').value.trim();
+  const details = includes('description') ? document.getElementById('taskDetails').value.trim() : '';
+  const sourceName = includes('platform') ? document.getElementById('taskSourceName').value.trim() : '';
+  const sourceUrl = includes('platform') ? document.getElementById('taskSourceUrl').value.trim() : '';
   return {
     taskId: document.getElementById('taskId').value,
     sectionId: document.getElementById('taskSectionId').value,
@@ -1335,11 +1460,21 @@ function readTaskForm() {
     sourceUrl,
     platformName: sourceName,
     platformUrl: sourceUrl,
+    problemStatement: includes('problem') ? document.getElementById('taskProblemStatement').value.trim() : '',
+    inputFormat: includes('problem') ? document.getElementById('taskInputFormat').value.trim() : '',
+    outputFormat: includes('problem') ? document.getElementById('taskOutputFormat').value.trim() : '',
+    constraints: includes('problem') ? document.getElementById('taskConstraints').value.trim() : '',
+    sampleInput: includes('problem') ? document.getElementById('taskSampleInput').value.trim() : '',
+    sampleOutput: includes('problem') ? document.getElementById('taskSampleOutput').value.trim() : '',
+    programmingLanguage: includes('code') ? document.getElementById('taskProgrammingLanguage').value.trim() : '',
+    code: includes('code') ? document.getElementById('taskCode').value : '',
+    solutionExplanation: includes('code') ? document.getElementById('taskSolutionExplanation').value.trim() : '',
+    taskNotes: includes('notes') ? document.getElementById('taskNotes').value.trim() : '',
     revisionStatus: document.getElementById('taskRevisionStatus').value || 'Not Started',
     nextRevisionDate: document.getElementById('taskNextRevisionDate').value || '',
     revisionNotes: document.getElementById('taskRevisionNotes').value.trim(),
     status: document.getElementById('taskRevisionStatus').value === 'Mastered' ? 'Completed' : 'Pending',
-    components: ['description'],
+    components,
   };
 }
 
@@ -1396,6 +1531,13 @@ function openTaskModal(taskId = null) {
 function populateTaskForm(task) {
   document.getElementById('taskForm').reset();
   setupSectionOptions();
+  const components = new Set(getTaskComponents(task));
+  if (task.sourceName || task.platformName || task.sourceUrl || task.platformUrl) {
+    components.add('platform');
+  }
+  document.querySelectorAll('input[name="taskComponents"]').forEach((checkbox) => {
+    checkbox.checked = components.has(checkbox.value);
+  });
   document.getElementById('taskId').value = task.id;
   document.getElementById('taskSectionId').value = task.sectionId || '';
   document.getElementById('taskDoneOn').value = taskDateLabel(task);
@@ -1403,9 +1545,20 @@ function populateTaskForm(task) {
   document.getElementById('taskDetails').value = task.details || '';
   document.getElementById('taskSourceName').value = taskSourceLabel(task) === 'No source' ? '' : taskSourceLabel(task);
   document.getElementById('taskSourceUrl').value = task.sourceUrl || '';
+  document.getElementById('taskProblemStatement').value = task.problemStatement || '';
+  document.getElementById('taskInputFormat').value = task.inputFormat || '';
+  document.getElementById('taskOutputFormat').value = task.outputFormat || '';
+  document.getElementById('taskConstraints').value = task.constraints || '';
+  document.getElementById('taskSampleInput').value = task.sampleInput || '';
+  document.getElementById('taskSampleOutput').value = task.sampleOutput || '';
+  document.getElementById('taskProgrammingLanguage').value = task.programmingLanguage || '';
+  document.getElementById('taskCode').value = task.code || '';
+  document.getElementById('taskSolutionExplanation').value = task.solutionExplanation || '';
+  document.getElementById('taskNotes').value = task.taskNotes || '';
   document.getElementById('taskRevisionStatus').value = task.revisionStatus || 'Not Started';
   document.getElementById('taskNextRevisionDate').value = task.nextRevisionDate || '';
   document.getElementById('taskRevisionNotes').value = task.revisionNotes || '';
+  updateTaskTypePanels();
 }
 
 function setupSectionOptions() {
@@ -1417,7 +1570,18 @@ function setupSectionOptions() {
   if (ownSections[0]) select.value = ownSections[0].id;
 }
 
-function updateTaskTypePanels() {}
+function updateTaskTypePanels() {
+  const selected = new Set(
+    [...document.querySelectorAll('input[name="taskComponents"]:checked')]
+      .map((checkbox) => checkbox.value)
+  );
+  document.getElementById('taskDescriptionPanel').classList.toggle('active', selected.has('description'));
+  document.getElementById('taskProblemPanel').classList.toggle('active', selected.has('problem'));
+  document.getElementById('taskCodePanel').classList.toggle('active', selected.has('code'));
+  document.getElementById('taskPlatformPanel').classList.toggle('active', selected.has('platform'));
+  document.getElementById('taskNotesPanel').classList.toggle('active', selected.has('notes'));
+  document.getElementById('taskSourceName').required = selected.has('platform');
+}
 
 function renderAllPages() {
   renderDashboard();
@@ -1745,6 +1909,7 @@ function renderTasksPage() {
               <th>Date</th>
               <th>Section</th>
               <th>What I did</th>
+              <th>Components</th>
               <th>Source</th>
               <th>Revision</th>
               <th>Action</th>
@@ -1755,7 +1920,8 @@ function renderTasksPage() {
               <tr>
                 <td>${escapeHtml(taskDateLabel(task) || 'Not set')}</td>
                 <td>${escapeHtml(task.sectionTitle || 'General')}</td>
-                <td><strong>${escapeHtml(taskLabel(task))}</strong><div class="muted">${escapeHtml(task.details || '')}</div></td>
+                <td><strong>${escapeHtml(taskLabel(task))}</strong>${getTaskComponents(task).includes('description') && task.details ? `<div class="muted">${escapeHtml(task.details)}</div>` : ''}</td>
+                <td><div class="component-tags">${taskComponentLabels(task).map((label) => `<span class="component-tag">${escapeHtml(label)}</span>`).join('')}</div></td>
                 <td>${task.sourceUrl ? `<a href="${escapeHtml(task.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(taskSourceLabel(task))}</a>` : escapeHtml(taskSourceLabel(task))}</td>
                 <td><span class="status-tag ${getStatusClass(task.revisionStatus)}">${escapeHtml(task.revisionStatus || 'Not Started')}</span></td>
                 <td>
@@ -1766,7 +1932,7 @@ function renderTasksPage() {
                   </div>
                 </td>
               </tr>
-            `).join('') : '<tr><td colspan="6"><div class="empty-state"><h4>No daily updates yet.</h4><p>Add what you did today and where it came from.</p></div></td></tr>'}
+            `).join('') : '<tr><td colspan="7"><div class="empty-state"><h4>No daily updates yet.</h4><p>Add what you did today and where it came from.</p></div></td></tr>'}
           </tbody>
         </table>
       </div>
@@ -2279,8 +2445,8 @@ function renderTaskDetail() {
         <div class="info-tile"><p>Revise on</p><strong>${escapeHtml(task.nextRevisionDate || 'Not scheduled')}</strong></div>
       </div>
       <div class="panel">
-        <h3>Details</h3>
-        <p>${escapeHtml(task.details || 'No extra details saved.')}</p>
+        ${getTaskComponents(task).includes('description') ? `<h3>Description</h3><p>${escapeHtml(task.details || 'No extra details saved.')}</p>` : ''}
+        ${renderTaskComponentDetails(task)}
         <h3>Source link</h3>
         <p>${sourceLink}</p>
         <h3>Revision notes</h3>
@@ -2405,11 +2571,16 @@ function escapeHtml(value) {
 
 async function handleLogout() {
   if (isFirebaseConfigured) {
-    await signOut(auth);
+    try {
+      await signOut(auth);
+    } catch (error) {
+      showToast(getFirebaseErrorMessage(error, 'Unable to log out.', 'Authentication sign-out'), 9000);
+    }
     return;
   }
 
   localStorage.removeItem('codeTrackSessionUid');
+  clearSessionExpiry();
   state.user = null;
   state.profile = null;
   renderApp();

@@ -5,6 +5,7 @@ CodeTrack is a personal coding revision and task management platform built with 
 ## Features
 
 - Student authentication with registration, login, logout, and password reset
+- Automatic logout after six hours per sign-in session
 - Individual user dashboards with metrics and quick actions
 - Section-based organization for coding topics and tasks
 - Checkbox-based task components: description, coding problem, code solution, platform link, and notes

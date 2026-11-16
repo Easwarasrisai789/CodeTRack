@@ -1114,6 +1114,34 @@ th {
   display: block;
 }
 
+.task-extra-panel.form-grid.active {
+  display: grid;
+}
+
+.component-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.component-tag {
+  display: inline-flex;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.task-detail-card pre {
+  overflow-x: auto;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  white-space: pre-wrap;
+}
+
 .activity-panel {
   margin-bottom: 18px;
 }

@@ -252,20 +252,83 @@
             <label for="taskWhatDone">What I did</label>
             <input id="taskWhatDone" type="text" placeholder="What you completed today" required />
           </div>
-          <div class="form-group">
-            <label for="taskDetails">Details</label>
+          <fieldset class="component-picker">
+            <legend>Include in this daily task</legend>
+            <p class="muted">Choose the details you want to record.</p>
+            <div class="component-options">
+              <label class="component-option"><input type="checkbox" name="taskComponents" value="description" checked /> Description</label>
+              <label class="component-option"><input type="checkbox" name="taskComponents" value="problem" /> Coding problem</label>
+              <label class="component-option"><input type="checkbox" name="taskComponents" value="code" /> Code solution</label>
+              <label class="component-option"><input type="checkbox" name="taskComponents" value="platform" checked /> Platform link</label>
+              <label class="component-option"><input type="checkbox" name="taskComponents" value="notes" /> Notes</label>
+            </div>
+          </fieldset>
+
+          <div class="form-group task-extra-panel active" id="taskDescriptionPanel">
+            <label for="taskDetails">Description</label>
             <textarea id="taskDetails" rows="4" placeholder="Notes you want to remember when you revise"></textarea>
           </div>
 
-          <div class="form-grid two">
+          <div class="task-extra-panel" id="taskProblemPanel">
             <div class="form-group">
-              <label for="taskSourceName">Source</label>
-              <input id="taskSourceName" type="text" placeholder="Book, class, LeetCode, docs..." required />
+              <label for="taskProblemStatement">Coding problem</label>
+              <textarea id="taskProblemStatement" rows="4" placeholder="Describe the problem"></textarea>
+            </div>
+            <div class="form-grid two">
+              <div class="form-group">
+                <label for="taskInputFormat">Input format</label>
+                <textarea id="taskInputFormat" rows="2"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="taskOutputFormat">Output format</label>
+                <textarea id="taskOutputFormat" rows="2"></textarea>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="taskConstraints">Constraints</label>
+              <textarea id="taskConstraints" rows="2"></textarea>
+            </div>
+            <div class="form-grid two">
+              <div class="form-group">
+                <label for="taskSampleInput">Sample input</label>
+                <textarea id="taskSampleInput" rows="2"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="taskSampleOutput">Sample output</label>
+                <textarea id="taskSampleOutput" rows="2"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="task-extra-panel" id="taskCodePanel">
+            <div class="form-group">
+              <label for="taskProgrammingLanguage">Solution language</label>
+              <input id="taskProgrammingLanguage" type="text" placeholder="e.g. JavaScript, Python" />
+            </div>
+            <div class="form-group">
+              <label for="taskCode">Code solution</label>
+              <textarea id="taskCode" rows="10" spellcheck="false" placeholder="Write or paste your solution"></textarea>
+            </div>
+            <div class="form-group">
+              <label for="taskSolutionExplanation">Solution explanation</label>
+              <textarea id="taskSolutionExplanation" rows="3"></textarea>
+            </div>
+          </div>
+
+          <div class="form-grid two task-extra-panel" id="taskPlatformPanel">
+            <div class="form-group">
+              <label for="taskSourceName">Source / platform</label>
+              <input id="taskSourceName" type="text" placeholder="Book, class, LeetCode, docs..." />
             </div>
             <div class="form-group">
               <label for="taskSourceUrl">Source link</label>
               <input id="taskSourceUrl" type="url" placeholder="https://..." />
             </div>
+          </div>
+
+          <div class="form-group task-extra-panel" id="taskNotesPanel">
+            <label for="taskNotes">Notes</label>
+            <textarea id="taskNotes" rows="3" placeholder="Extra notes about this task"></textarea>
           </div>
 
           <div class="form-grid two">
